@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chalk &amp; Query — AI Quiz Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --board:#17332a;
+    --board-2:#1c3d32;
+    --chalk:#eef2ea;
+    --chalk-dim:#a9bdb0;
+    --yellow:#e8c547;
+    --red:#c0564a;
+    --blue:#6fa8b5;
+    --line: rgba(238,242,234,0.16);
+    --line-strong: rgba(238,242,234,0.32);
+    --radius: 10px;
+    --shadow: 0 20px 50px rgba(0,0,0,0.45);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    min-height:100vh;
+    background:
+      radial-gradient(ellipse at 20% 10%, rgba(255,255,255,0.03), transparent 45%),
+      radial-gradient(ellipse at 80% 90%, rgba(255,255,255,0.025), transparent 50%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px, transparent 1px, transparent 3px),
+      var(--board);
+    color: var(--chalk);
+    font-family:'Space Grotesk', sans-serif;
+    padding: 40px 20px 80px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+  .noise{
+    position:fixed; inset:0; pointer-events:none; opacity:0.05; mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  header{
+    text-align:center;
+    margin-bottom: 36px;
+    max-width: 640px;
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono', monospace;
+    letter-spacing: 0.18em;
+    text-transform:uppercase;
+    font-size:12px;
+    color: var(--yellow);
+    margin-bottom: 10px;
+  }
+  h1{
+    font-family:'Kalam', cursive;
+    font-weight:700;
+    font-size: clamp(38px, 6vw, 58px);
+    margin: 0 0 10px;
+    line-height:1.05;
+    transform: rotate(-0.6deg);
+  }
+  header p{
+    color: var(--chalk-dim);
+    font-size:15px;
+    line-height:1.6;
+    margin:0;
+  }
+  .underline{
+    display:block;
+    width:220px;
+    height:10px;
+    margin:6px auto 0;
+  }
+
+  .stage{
+    width:100%;
+    max-width: 720px;
+  }
+
+  .card{
+    background: var(--board-2);
+    border: 1.5px dashed var(--line-strong);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 32px;
+    position:relative;
+  }
+  .card::before{
+    content:"";
+    position:absolute; inset:8px;
+    border:1px solid var(--line);
+    border-radius: 6px;
+    pointer-events:none;
+  }
+
+  h2{
+    font-family:'Kalam', cursive;
+    font-size: 26px;
+    margin: 0 0 4px;
+  }
+  .sub{
+    color: var(--chalk-dim);
+    font-size: 13px;
+    margin: 0 0 24px;
+  }
+
+  label.field-label{
+    display:block;
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color: var(--yellow);
+    margin-bottom:8px;
+  }
+
+  textarea{
+    width:100%;
+    min-height:130px;
+    resize:vertical;
+    background: rgba(0,0,0,0.18);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--chalk);
+    font-family:'Space Grotesk', sans-serif;
+    font-size:14px;
+    padding: 14px;
+    line-height:1.6;
+    outline:none;
+  }
+  textarea:focus{ border-color: var(--yellow); }
+  textarea::placeholder{ color: rgba(238,242,234,0.35); }
+
+  .chip-row{
+    display:flex; flex-wrap:wrap; gap:8px; margin-bottom:22px;
+  }
+  .chip{
+    font-family:'JetBrains Mono', monospace;
+    font-size:12.5px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    background: transparent;
+    color: var(--chalk-dim);
+    cursor:pointer;
+    transition: all .15s ease;
+  }
+  .chip:hover{ border-color: var(--yellow); color: var(--chalk); }
+  .chip.active{
+    background: var(--yellow);
+    color: #1c2620;
+    border-color: var(--yellow);
+    font-weight:600;
+  }
+
+  .row{ display:flex; gap:20px; flex-wrap:wrap; margin-bottom:22px; }
+  .row .field{ flex:1; min-width:180px; }
+
+  select, input[type="range"]{
+    width:100%;
+  }
+  select{
+    background: rgba(0,0,0,0.18);
+    border:1px solid var(--line);
+    color: var(--chalk);
+    padding:10px 12px;
+    border-radius:8px;
+    font-family:'Space Grotesk', sans-serif;
+    font-size:14px;
+  }
+  .range-value{
+    font-family:'JetBrains Mono', monospace;
+    color: var(--yellow);
+    font-size:13px;
+    margin-left:8px;
+  }
+  input[type="range"]{
+    accent-color: var(--yellow);
+  }
+
+  .btn{
+    font-family:'Kalam', cursive;
+    font-weight:700;
+    font-size:19px;
+    background: var(--yellow);
+    color:#1c2620;
+    border:none;
+    padding: 14px 28px;
+    border-radius: 8px;
+    cursor:pointer;
+    box-shadow: 0 6px 0 #a98a2f;
+    transition: transform .08s ease, box-shadow .08s ease;
+  }
+  .btn:hover{ transform: translateY(-1px); }
+  .btn:active{ transform: translateY(4px); box-shadow: 0 2px 0 #a98a2f; }
+  .btn.secondary{
+    background: transparent;
+    color: var(--chalk);
+    border: 1.5px dashed var(--line-strong);
+    box-shadow:none;
+  }
+  .btn.secondary:hover{ border-color: var(--yellow); color: var(--yellow); }
+  .btn.small{ font-size:14px; padding:9px 16px; box-shadow:0 4px 0 #a98a2f; }
+  .btn-row{ display:flex; gap:14px; flex-wrap:wrap; margin-top:8px; }
+
+  .hint{ font-size:12.5px; color: var(--chalk-dim); margin-top: -14px; margin-bottom:22px; }
+
+  /* Quiz screen */
+  .progress-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; }
+  .tally{ display:flex; gap:6px; flex-wrap:wrap; }
+  .mark{
+    width:9px; height:22px; border-radius:2px;
+    background: rgba(238,242,234,0.14);
+  }
+  .mark.done{ background: var(--yellow); }
+  .mark.current{ background: var(--chalk); }
+  .score-badge{
+    font-family:'JetBrains Mono', monospace;
+    font-size:13px;
+    color: var(--chalk-dim);
+  }
+  .score-badge b{ color: var(--yellow); }
+
+  .qtag{
+    display:inline-block;
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color: var(--blue);
+    border:1px solid var(--blue);
+    padding: 3px 9px;
+    border-radius: 999px;
+    margin-bottom:14px;
+  }
+  .question{
+    font-family:'Kalam', cursive;
+    font-size: 25px;
+    line-height:1.4;
+    margin: 0 0 22px;
+  }
+  .options{ display:flex; flex-direction:column; gap:10px; }
+  .option{
+    display:flex; align-items:center; gap:12px;
+    text-align:left;
+    background: rgba(0,0,0,0.16);
+    border: 1.5px solid var(--line);
+    border-radius: 8px;
+    padding: 13px 16px;
+    color: var(--chalk);
+    font-size: 15px;
+    cursor:pointer;
+    transition: border-color .12s ease, background .12s ease;
+    font-family:'Space Grotesk', sans-serif;
+  }
+  .option:hover:not(.locked){ border-color: var(--yellow); background: rgba(232,197,71,0.08); }
+  .option .letter{
+    font-family:'JetBrains Mono', monospace;
+    font-weight:600;
+    color: var(--yellow);
+    width:20px;
+    flex-shrink:0;
+  }
+  .option.correct{ border-color:#7fbf8a; background: rgba(127,191,138,0.14); }
+  .option.incorrect{ border-color: var(--red); background: rgba(192,86,74,0.16); }
+  .option.locked{ cursor:default; }
+  .option.faded{ opacity:0.5; }
+
+  .feedback{
+    margin-top:18px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:13px;
+    color: var(--chalk-dim);
+    min-height: 18px;
+  }
+  .feedback.good{ color:#7fbf8a; }
+  .feedback.bad{ color: var(--red); }
+
+  .next-row{ display:flex; justify-content:flex-end; margin-top:20px; }
+
+  /* Results */
+  .stamp-wrap{ display:flex; justify-content:center; margin: 6px 0 26px; }
+  .stamp{
+    font-family:'Kalam', cursive;
+    font-weight:700;
+    font-size: 30px;
+    padding: 14px 34px;
+    border: 5px solid var(--red);
+    color: var(--red);
+    border-radius: 12px;
+    transform: rotate(-6deg);
+    text-transform:uppercase;
+    letter-spacing:2px;
+    opacity:0.92;
+  }
+  .stamp.pass{ border-color:#7fbf8a; color:#7fbf8a; }
+
+  .score-line{
+    text-align:center;
+    font-family:'JetBrains Mono', monospace;
+    color: var(--chalk-dim);
+    margin-bottom: 28px;
+    font-size:14px;
+  }
+  .score-line b{ color: var(--chalk); font-size:20px; }
+
+  .review-item{
+    border-top: 1px solid var(--line);
+    padding: 16px 0;
+  }
+  .review-item:first-child{ border-top:none; }
+  .review-q{ font-size:14.5px; margin-bottom:8px; }
+  .review-a{ font-size:13px; color: var(--chalk-dim); display:flex; gap:8px; align-items:flex-start; }
+  .review-a.wrong{ color: var(--red); }
+  .review-a.right{ color:#7fbf8a; }
+  .tag-icon{ font-family:'JetBrains Mono', monospace; }
+
+  footer{
+    margin-top: 42px;
+    color: rgba(238,242,234,0.35);
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    text-align:center;
+  }
+
+  .hidden{ display:none !important; }
+
+  @media (max-width: 520px){
+    .card{ padding:22px; }
+    h1{ font-size:34px; }
+    .question{ font-size:21px; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ transition:none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="noise"></div>
+
+<header>
+  <div class="eyebrow">Client-side · No API key needed</div>
+  <h1>Chalk &amp; Query</h1>
+  <svg class="underline" viewBox="0 0 220 10" xmlns="http://www.w3.org/2000/svg">
+    <path d="M2,6 C40,1 80,9 110,5 C140,1 180,9 218,4" stroke="#e8c547" stroke-width="3" fill="none" stroke-linecap="round"/>
+  </svg>
+  <p>Paste your notes and it turns them into a quiz — or grab a ready-made deck and get quizzed right now.</p>
+</header>
+
+<div class="stage">
+
+  <!-- SETUP SCREEN -->
+  <section id="setup" class="card">
+    <h2>Set up your quiz</h2>
+    <p class="sub">Choose a source, tune the settings, then hit generate.</p>
+
+    <label class="field-label">Source</label>
+    <div class="chip-row" id="sourceChips">
+      <button class="chip active" data-source="notes">My own notes</button>
+      <button class="chip" data-source="preset">Ready-made topic</button>
+    </div>
+
+    <div id="notesBlock">
+      <label class="field-label">Paste text, notes, or an article</label>
+      <textarea id="notesInput" placeholder="Paste a few paragraphs here — a study guide, an article, class notes, anything with real sentences. The more specific the text, the better the questions."></textarea>
+      <p class="hint">Aim for at least 5–6 solid sentences. Short or thin text will be padded out with general-knowledge questions.</p>
+    </div>
+
+    <div id="presetBlock" class="hidden">
+      <label class="field-label">Topic</label>
+      <div class="chip-row" id="topicChips">
+        <button class="chip active" data-topic="general">General Knowledge</button>
+        <button class="chip" data-topic="science">Science</button>
+        <button class="chip" data-topic="history">History</button>
+        <button class="chip" data-topic="geography">Geography</button>
+        <button class="chip" data-topic="movies">Movies &amp; Pop Culture</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label class="field-label">Number of questions <span class="range-value" id="qCountLabel">8</span></label>
+        <input type="range" id="qCount" min="3" max="15" value="8">
+      </div>
+      <div class="field">
+        <label class="field-label">Question style</label>
+        <select id="qStyle">
+          <option value="mixed">Mixed (MCQ + True/False)</option>
+          <option value="mcq">Multiple choice only</option>
+          <option value="tf">True / False only</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn" id="generateBtn">Generate Quiz →</button>
+    </div>
+  </section>
+
+  <!-- QUIZ SCREEN -->
+  <section id="quiz" class="card hidden">
+    <div class="progress-row">
+      <div class="tally" id="tally"></div>
+      <div class="score-badge">Score: <b id="scoreLive">0</b>/<span id="scoreTotal">0</span></div>
+    </div>
+    <span class="qtag" id="qTag">Multiple Choice</span>
+    <p class="question" id="questionText"></p>
+    <div class="options" id="optionsWrap"></div>
+    <p class="feedback" id="feedback"></p>
+    <div class="next-row">
+      <button class="btn small hidden" id="nextBtn">Next →</button>
+    </div>
+  </section>
+
+  <!-- RESULTS SCREEN -->
+  <section id="results" class="card hidden">
+    <h2>Results</h2>
+    <p class="sub">Here's how it went.</p>
+    <div class="stamp-wrap">
+      <div class="stamp" id="stampEl">Nice Try</div>
+    </div>
+    <p class="score-line">You scored <b id="finalScore">0</b> out of <b id="finalTotal">0</b></p>
+    <div id="reviewList"></div>
+    <div class="btn-row">
+      <button class="btn" id="retakeBtn">Retake this quiz</button>
+      <button class="btn secondary" id="newBtn">Start over</button>
+    </div>
+  </section>
+
+</div>
+
+<footer>Built entirely in one HTML file · questions are generated in your browser, nothing is uploaded anywhere</footer>
+
+<script>
+(function(){
+
+  // ---------- Preset question banks ----------
+  const BANKS = {
+    general: [
+      ["What is the largest ocean on Earth?", ["Pacific Ocean","Atlantic Ocean","Indian Ocean","Arctic Ocean"], 0],
+      ["How many continents are there?", ["5","6","7","8"], 2],
+      ["What is the freezing point of water in Celsius?", ["0°C","10°C","-10°C","5°C"], 0],
+      ["Which planet is known as the Red Planet?", ["Venus","Mars","Jupiter","Saturn"], 1],
+      ["What is the currency of Japan?", ["Won","Yuan","Yen","Ringgit"], 2],
+      ["How many days are there in a leap year?", ["365","364","366","367"], 2],
+      ["What gas do plants primarily absorb from the air?", ["Oxygen","Carbon dioxide","Nitrogen","Hydrogen"], 1],
+      ["Which is the smallest prime number?", ["0","1","2","3"], 2],
+      ["What is the tallest mountain in the world?", ["K2","Everest","Kangchenjunga","Denali"], 1],
+      ["Which organ pumps blood through the human body?", ["Lungs","Liver","Heart","Kidney"], 2],
+    ],
+    science: [
+      ["What is the chemical symbol for gold?", ["Ag","Au","Gd","Go"], 1],
+      ["What force pulls objects toward the Earth?", ["Magnetism","Friction","Gravity","Tension"], 2],
+      ["What is the powerhouse of the cell?", ["Nucleus","Ribosome","Mitochondria","Golgi body"], 2],
+      ["Which particle has a negative charge?", ["Proton","Neutron","Electron","Photon"], 2],
+      ["What is H2O commonly known as?", ["Salt","Water","Hydrogen peroxide","Oxygen"], 1],
+      ["Which planet has the most moons confirmed as of recent counts?", ["Jupiter","Saturn","Neptune","Uranus"], 1],
+      ["What is the process by which plants make food called?", ["Respiration","Digestion","Photosynthesis","Fermentation"], 2],
+      ["What is the boiling point of water at sea level in Celsius?", ["90°C","100°C","110°C","120°C"], 1],
+      ["Which blood type is known as the universal donor?", ["A","B","AB","O negative"], 3],
+      ["What is the study of living organisms called?", ["Geology","Biology","Astronomy","Chemistry"], 1],
+    ],
+    history: [
+      ["In which year did World War II end?", ["1943","1945","1947","1950"], 1],
+      ["Who was the first President of the United States?", ["Thomas Jefferson","John Adams","George Washington","Abraham Lincoln"], 2],
+      ["The ancient pyramids are most associated with which civilization?", ["Roman","Egyptian","Greek","Mayan"], 1],
+      ["Which empire built the Colosseum?", ["Ottoman","Roman","Persian","Byzantine"], 1],
+      ["The Renaissance began in which country?", ["France","Spain","Italy","Germany"], 2],
+      ["Who wrote the Declaration of Independence?", ["Benjamin Franklin","Thomas Jefferson","John Adams","James Madison"], 1],
+      ["The Berlin Wall fell in which year?", ["1987","1989","1991","1993"], 1],
+      ["Which war was fought between the North and South United States?", ["Revolutionary War","Civil War","War of 1812","Cold War"], 1],
+      ["Who was known as the Maid of Orléans?", ["Marie Antoinette","Joan of Arc","Catherine the Great","Cleopatra"], 1],
+      ["The Great Wall was built primarily to protect which country?", ["India","China","Japan","Mongolia"], 1],
+    ],
+    geography: [
+      ["Which is the longest river in the world?", ["Amazon","Nile","Yangtze","Mississippi"], 1],
+      ["Which country has the largest population?", ["USA","India","China","Indonesia"], 2],
+      ["What is the smallest country in the world by area?", ["Monaco","San Marino","Vatican City","Liechtenstein"], 2],
+      ["Which desert is the largest in the world?", ["Gobi","Sahara","Kalahari","Antarctic"], 3],
+      ["Mount Kilimanjaro is located in which country?", ["Kenya","Tanzania","Uganda","Ethiopia"], 1],
+      ["Which country is known as the Land of the Rising Sun?", ["China","South Korea","Japan","Thailand"], 2],
+      ["The Great Barrier Reef is located off the coast of which country?", ["Brazil","Australia","Indonesia","Philippines"], 1],
+      ["Which continent is the Sahara Desert located on?", ["Asia","Africa","Australia","South America"], 1],
+      ["What is the capital of Canada?", ["Toronto","Vancouver","Ottawa","Montreal"], 2],
+      ["Which strait separates Asia and North America?", ["Strait of Gibraltar","Bering Strait","Strait of Malacca","Taiwan Strait"], 1],
+    ],
+    movies: [
+      ["Which movie features a ship called the Titanic?", ["The Perfect Storm","Titanic","Poseidon","Life of Pi"], 1],
+      ["Who directed the movie 'Jaws'?", ["George Lucas","Steven Spielberg","James Cameron","Martin Scorsese"], 1],
+      ["In which animated film does a clownfish named Nemo appear?", ["Shark Tale","Finding Nemo","Moana","Luca"], 1],
+      ["Which fictional wizarding school does Harry Potter attend?", ["Hogwarts","Durmstrang","Beauxbatons","Ilvermorny"], 0],
+      ["What is the name of the superhero played by a character with a green suit and archery skills in a popular franchise?", ["Hawkeye","Green Arrow","Deadshot","Robin"], 0],
+      ["Which movie won the first Academy Award for Best Picture?", ["Wings","Gone with the Wind","Casablanca","It Happened One Night"], 0],
+      ["Which studio produced 'Toy Story'?", ["DreamWorks","Pixar","Illumination","Warner Bros"], 1],
+      ["What year did the original 'Star Wars' film release?", ["1975","1977","1980","1983"], 1],
+      ["Who played the lead role of Iron Man in the Marvel Cinematic Universe?", ["Chris Evans","Robert Downey Jr.","Chris Hemsworth","Mark Ruffalo"], 1],
+      ["Which movie features a hobbit named Frodo Baggins?", ["The Chronicles of Narnia","The Lord of the Rings","Eragon","The Hobbit"], 1],
+    ]
+  };
+
+  // ---------- State ----------
+  let state = {
+    source: 'notes',
+    topic: 'general',
+    style: 'mixed',
+    count: 8,
+    questions: [],
+    current: 0,
+    score: 0,
+    answers: [] // {question, chosenText, correctText, wasCorrect}
+  };
+
+  // ---------- DOM refs ----------
+  const $ = (id) => document.getElementById(id);
+  const setupCard = $('setup');
+  const quizCard = $('quiz');
+  const resultsCard = $('results');
+
+  // Source chips
+  document.querySelectorAll('#sourceChips .chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      document.querySelectorAll('#sourceChips .chip').forEach(c=>c.classList.remove('active'));
+      chip.classList.add('active');
+      state.source = chip.dataset.source;
+      $('notesBlock').classList.toggle('hidden', state.source !== 'notes');
+      $('presetBlock').classList.toggle('hidden', state.source !== 'preset');
+    });
+  });
+
+  // Topic chips
+  document.querySelectorAll('#topicChips .chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      document.querySelectorAll('#topicChips .chip').forEach(c=>c.classList.remove('active'));
+      chip.classList.add('active');
+      state.topic = chip.dataset.topic;
+    });
+  });
+
+  $('qCount').addEventListener('input', (e)=>{
+    $('qCountLabel').textContent = e.target.value;
+    state.count = parseInt(e.target.value,10);
+  });
+  $('qStyle').addEventListener('change', (e)=>{ state.style = e.target.value; });
+
+  $('generateBtn').addEventListener('click', ()=>{
+    const generated = buildQuiz();
+    if(generated.length === 0){
+      alert('Could not build questions from that text — try pasting a bit more, or switch to a ready-made topic.');
+      return;
+    }
+    state.questions = generated;
+    state.current = 0;
+    state.score = 0;
+    state.answers = [];
+    setupCard.classList.add('hidden');
+    resultsCard.classList.add('hidden');
+    quizCard.classList.remove('hidden');
+    renderTally();
+    renderQuestion();
+  });
+
+  $('nextBtn').addEventListener('click', ()=>{
+    state.current++;
+    if(state.current >= state.questions.length){
+      showResults();
+    } else {
+      renderQuestion();
+    }
+  });
+
+  $('retakeBtn').addEventListener('click', ()=>{
+    state.current = 0;
+    state.score = 0;
+    state.answers = [];
+    resultsCard.classList.add('hidden');
+    quizCard.classList.remove('hidden');
+    renderTally();
+    renderQuestion();
+  });
+
+  $('newBtn').addEventListener('click', ()=>{
+    resultsCard.classList.add('hidden');
+    setupCard.classList.remove('hidden');
+  });
+
+  // ---------- Quiz generation ----------
+  const STOPWORDS = new Set(("the a an of to in on for and or but is are was were be been being this that these those "+
+    "with as at by from it its it's he she they we you i his her their our your not no yes so if then than which who whom "+
+    "will would can could should shall may might must about into over under again further once here there all any both "+
+    "each few more most other some such only own same too very s t just don now").split(' '));
+
+  function splitSentences(text){
+    return text
+      .replace(/\s+/g,' ')
+      .split(/(?<=[.!?])\s+(?=[A-Z0-9])/)
+      .map(s=>s.trim())
+      .filter(s=> s.length > 25 && s.length < 240 && /[a-zA-Z]/.test(s));
+  }
+
+  function pickKeyword(sentence, excludeFirstWord){
+    const words = sentence.replace(/[.,!?;:"'()]/g,'').split(' ');
+    let candidates = words.filter((w,i)=>{
+      if (i===0 && excludeFirstWord) return false;
+      const lw = w.toLowerCase();
+      if (w.length < 4) return false;
+      if (STOPWORDS.has(lw)) return false;
+      return true;
+    });
+    if (candidates.length === 0) return null;
+    // prefer capitalized (proper nouns) or numbers, else longest word
+    let capitalized = candidates.filter(w=> /^[A-Z]/.test(w) );
+    let numeric = candidates.filter(w=> /\d/.test(w));
+    let pool = numeric.length ? numeric : (capitalized.length ? capitalized : candidates);
+    pool.sort((a,b)=> b.length - a.length);
+    return pool[0];
+  }
+
+  function buildFromNotes(text, maxCount, style){
+    const sentences = splitSentences(text);
+    const usable = [];
+    const usedKeywords = new Set();
+
+    sentences.forEach(sentence=>{
+      const kw = pickKeyword(sentence, true);
+      if (kw && !usedKeywords.has(kw.toLowerCase())){
+        usedKeywords.add(kw.toLowerCase());
+        usable.push({ sentence, keyword: kw });
+      }
+    });
+
+    if (usable.length === 0) return [];
+
+    const allKeywords = usable.map(u=>u.keyword);
+    const questions = [];
+
+    usable.forEach((item, idx)=>{
+      if (questions.length >= maxCount) return;
+
+      const makeMCQ = style !== 'tf' && (style === 'mcq' || idx % 2 === 0);
+
+      if (makeMCQ){
+        // build distractors: other keywords of roughly similar length
+        let distractors = allKeywords
+          .filter(k=> k.toLowerCase() !== item.keyword.toLowerCase())
+          .sort(()=> Math.random()-0.5)
+          .slice(0,3);
+        while (distractors.length < 3){
+          distractors.push('None of these');
+        }
+        const blanked = item.sentence.replace(item.keyword, '_____');
+        const options = shuffle([item.keyword, ...distractors]);
+        questions.push({
+          type: 'mcq',
+          text: 'Fill in the blank: "' + blanked + '"',
+          options,
+          answerIndex: options.indexOf(item.keyword)
+        });
+      } else {
+        // True/False: 50% present sentence as-is (True), 50% swap keyword with a random other keyword (False)
+        const makeFalse = Math.random() < 0.5 && allKeywords.length > 1;
+        let displaySentence = item.sentence;
+        let isTrue = true;
+        if (makeFalse){
+          const others = allKeywords.filter(k=> k.toLowerCase() !== item.keyword.toLowerCase());
+          const swap = others[Math.floor(Math.random()*others.length)];
+          displaySentence = item.sentence.replace(item.keyword, swap);
+          isTrue = false;
+        }
+        const options = ['True','False'];
+        questions.push({
+          type: 'tf',
+          text: 'True or False: "' + displaySentence + '"',
+          options,
+          answerIndex: isTrue ? 0 : 1
+        });
+      }
+    });
+
+    return questions.slice(0, maxCount);
+  }
+
+  function buildFromPreset(topic, maxCount, style){
+    const bank = BANKS[topic] || BANKS.general;
+    const shuffled = shuffle(bank.slice());
+    const picked = shuffled.slice(0, maxCount);
+    return picked.map((item, idx)=>{
+      const [q, opts, answerIdx] = item;
+      if (style === 'tf'){
+        // convert to a true/false framing using the correct option as a true statement,
+        // or a wrong option as a false statement
+        const makeFalse = Math.random() < 0.5;
+        let statement, isTrue;
+        if (makeFalse){
+          const wrongOptions = opts.filter((_,i)=> i !== answerIdx);
+          const wrong = wrongOptions[Math.floor(Math.random()*wrongOptions.length)];
+          statement = q.replace('?', '') + ' — ' + wrong + '.';
+          isTrue = false;
+        } else {
+          statement = q.replace('?', '') + ' — ' + opts[answerIdx] + '.';
+          isTrue = true;
+        }
+        return { type:'tf', text:'True or False: "'+statement+'"', options:['True','False'], answerIndex: isTrue?0:1 };
+      }
+      return { type:'mcq', text:q, options: opts, answerIndex: answerIdx };
+    });
+  }
+
+  function buildQuiz(){
+    const count = state.count;
+    const style = state.style;
+
+    if (state.source === 'preset'){
+      return shuffle(buildFromPreset(state.topic, count, style));
+    }
+
+    const text = $('notesInput').value.trim();
+    let fromNotes = text ? buildFromNotes(text, count, style) : [];
+
+    if (fromNotes.length < count){
+      const remaining = count - fromNotes.length;
+      const filler = buildFromPreset('general', remaining, style);
+      fromNotes = fromNotes.concat(filler);
+    }
+    return shuffle(fromNotes).slice(0, count);
+  }
+
+  function shuffle(arr){
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i+1));
+      [a[i],a[j]] = [a[j],a[i]];
+    }
+    return a;
+  }
+
+  // ---------- Rendering ----------
+  function renderTally(){
+    const tally = $('tally');
+    tally.innerHTML = '';
+    state.questions.forEach((q,i)=>{
+      const el = document.createElement('div');
+      el.className = 'mark' + (i < state.current ? ' done' : (i===state.current ? ' current' : ''));
+      tally.appendChild(el);
+    });
+    $('scoreTotal').textContent = state.questions.length;
+  }
+
+  function renderQuestion(){
+    renderTally();
+    $('scoreLive').textContent = state.score;
+    const q = state.questions[state.current];
+    $('qTag').textContent = q.type === 'mcq' ? 'Multiple Choice' : 'True / False';
+    $('questionText').textContent = q.text;
+    $('feedback').textContent = '';
+    $('feedback').className = 'feedback';
+    $('nextBtn').classList.add('hidden');
+
+    const wrap = $('optionsWrap');
+    wrap.innerHTML = '';
+    const letters = ['A','B','C','D'];
+    q.options.forEach((opt, i)=>{
+      const btn = document.createElement('button');
+      btn.className = 'option';
+      btn.innerHTML = '<span class="letter">'+letters[i]+'</span><span>'+escapeHtml(opt)+'</span>';
+      btn.addEventListener('click', ()=> selectAnswer(i, btn));
+      wrap.appendChild(btn);
+    });
+  }
+
+  function selectAnswer(i, btnEl){
+    const q = state.questions[state.current];
+    const options = Array.from(document.querySelectorAll('#optionsWrap .option'));
+    options.forEach(o=> o.classList.add('locked'));
+
+    const correct = i === q.answerIndex;
+    if (correct){
+      btnEl.classList.add('correct');
+      state.score++;
+      $('feedback').textContent = '✓ Correct!';
+      $('feedback').className = 'feedback good';
+    } else {
+      btnEl.classList.add('incorrect');
+      options[q.answerIndex].classList.add('correct');
+      $('feedback').textContent = '✗ Not quite — correct answer highlighted above.';
+      $('feedback').className = 'feedback bad';
+    }
+    options.forEach((o,idx)=>{ if(idx!==i && idx!==q.answerIndex) o.classList.add('faded'); });
+
+    state.answers.push({
+      text: q.text,
+      chosen: q.options[i],
+      correctAnswer: q.options[q.answerIndex],
+      wasCorrect: correct
+    });
+
+    $('scoreLive').textContent = state.score;
+    $('nextBtn').classList.remove('hidden');
+    $('nextBtn').textContent = (state.current === state.questions.length - 1) ? 'See results →' : 'Next →';
+    renderTally();
+  }
+
+  function showResults(){
+    quizCard.classList.add('hidden');
+    resultsCard.classList.remove('hidden');
+    const total = state.questions.length;
+    const score = state.score;
+    $('finalScore').textContent = score;
+    $('finalTotal').textContent = total;
+
+    const pct = total ? score/total : 0;
+    const stamp = $('stampEl');
+    if (pct >= 0.6){
+      stamp.textContent = pct === 1 ? 'Perfect Score' : 'Pass';
+      stamp.classList.add('pass');
+    } else {
+      stamp.textContent = 'Nice Try';
+      stamp.classList.remove('pass');
+    }
+
+    const list = $('reviewList');
+    list.innerHTML = '';
+    state.answers.forEach((a, i)=>{
+      const div = document.createElement('div');
+      div.className = 'review-item';
+      div.innerHTML =
+        '<div class="review-q">'+(i+1)+'. '+escapeHtml(a.text)+'</div>' +
+        '<div class="review-a '+(a.wasCorrect?'right':'wrong')+'">' +
+          '<span class="tag-icon">'+(a.wasCorrect?'✓':'✗')+'</span>' +
+          '<span>Your answer: '+escapeHtml(a.chosen)+ (a.wasCorrect ? '' : ' — correct: '+escapeHtml(a.correctAnswer)) +'</span>' +
+        '</div>';
+      list.appendChild(div);
+    });
+  }
+
+  function escapeHtml(str){
+    return String(str)
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;');
+  }
+
+})();
+</script>
+</body>
+</html>
